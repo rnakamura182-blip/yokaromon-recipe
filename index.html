@@ -119,6 +119,9 @@
   td.qty .unit { font-size: 14px; font-weight: 400; margin-left: 2px; }
   td.qty .orig { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
   .memo { display: block; font-size: 13px; color: var(--muted); }
+  .steps { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 0; padding: 12px 16px 12px 36px; }
+  .steps li { padding: 6px 0; border-top: 1px solid var(--line); }
+  .steps li:first-child { border-top: 0; }
 
   .footer-tools { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 14px; }
   .footer-tools label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -143,6 +146,7 @@
       </form>
       <p id="loginError" class="error hidden"></p>
     </div>
+    <p id="loginVersion" class="fetched"></p>
   </section>
 
   <p id="statusMsg" class="status hidden"></p>
@@ -166,6 +170,8 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbxXX8PZZkaBL3DBD5m6lak6gpOuTudh42oUiUrkcEsEbS_oBXm8O1ZbAiotQIa0ZKTu/exec';
 const KEY_STORAGE = 'yokaromon_recipe_key';
 const PRESETS = [0.5, 1, 2, 3, 5];
+const APP_VERSION = '2026-09-22c'; // 画面ファイルを更新したら変える（スマホに新しい版が届いたかの確認用）
+const PREFIX_UNITS = ['大さじ', '小さじ'];
 
 const state = { recipes: [], fetchedAt: null, category: 'すべて', query: '', scale: {} };
 const $ = (id) => document.getElementById(id);
@@ -183,20 +189,74 @@ function show(viewId) {
 }
 function status(msg) { $('statusMsg').textContent = msg; show('statusMsg'); }
 
+// iPhoneで「読み込み中…」のまま止まる事象(2026-09-22)への対策:
+// 1) fetch は15秒で打ち切る 2) fetch が失敗・停止したら JSONP（<script>読み込み）で取り直す 3) 失敗理由を画面に出す
+const FETCH_TIMEOUT_MS = 15000;
+const JSONP_TIMEOUT_MS = 20000;
+
+function fetchViaFetch(url) {
+  return new Promise((resolve, reject) => {
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => { if (ctrl) ctrl.abort(); reject(new Error('fetch timeout ' + FETCH_TIMEOUT_MS / 1000 + 's')); }, FETCH_TIMEOUT_MS);
+    fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then((res) => res.text().then((text) => {
+        try { return JSON.parse(text); }
+        catch (e) { throw new Error('fetch: JSONではない応答 (HTTP ' + res.status + ')'); }
+      }))
+      .then((data) => { clearTimeout(timer); resolve(data); })
+      .catch((e) => { clearTimeout(timer); reject(new Error('fetch: ' + (e && (e.name + ' ' + e.message)))); });
+  });
+}
+
+function fetchViaJsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = '__recipeCb' + Date.now();
+    const script = document.createElement('script');
+    const cleanup = () => { clearTimeout(timer); delete window[cb]; script.remove(); };
+    const timer = setTimeout(() => { cleanup(); reject(new Error('jsonp timeout ' + JSONP_TIMEOUT_MS / 1000 + 's')); }, JSONP_TIMEOUT_MS);
+    window[cb] = (data) => { cleanup(); resolve(data); };
+    script.onerror = () => { cleanup(); reject(new Error('jsonp: 読み込み失敗')); };
+    script.src = url + '&callback=' + cb;
+    document.head.appendChild(script);
+  });
+}
+
+const JSONP_FIRST_STORAGE = 'yokaromon_recipe_jsonp_first'; // fetch で止まった端末は次回から JSONP を先に使う
+
 async function fetchRecipes(key) {
   const url = API_URL + '?api=recipes&key=' + encodeURIComponent(key) + '&t=' + Date.now();
-  let res;
-  try {
-    res = await fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store' });
-  } catch (e) {
-    throw { kind: 'network', message: '通信できませんでした。電波の状態を確認して、もう一度お試しください。' };
-  }
+  const jsonpFirst = storageGet(JSONP_FIRST_STORAGE) === '1';
+  const first = jsonpFirst ? fetchViaJsonp : fetchViaFetch;
+  const second = jsonpFirst ? fetchViaFetch : fetchViaJsonp;
   let data;
-  try { data = await res.json(); }
-  catch (e) { throw { kind: 'server', message: 'サーバーの応答を読み取れませんでした（' + res.status + '）。時間をおいて再度お試しください。' }; }
-  if (!data.ok) throw { kind: data.error, message: data.message || 'エラーが発生しました。' };
+  try {
+    data = await first(url);
+  } catch (e1) {
+    status('読み込み中…（別の方法で再接続しています）');
+    try {
+      data = await second(url);
+      if (!jsonpFirst) storageSet(JSONP_FIRST_STORAGE, '1');
+      else storageDel(JSONP_FIRST_STORAGE);
+    } catch (e2) {
+      throw { kind: 'network', message: '通信できませんでした。電波の状態を確認して、もう一度お試しください。', detail: e1.message + ' / ' + e2.message };
+    }
+  }
+  if (!data || !data.ok) throw { kind: data && data.error, message: (data && data.message) || 'エラーが発生しました。' };
   return data;
 }
+
+// 画面に原因を残す（何も出ずに止まるのを防ぐ）
+function showFatal(title, detail) {
+  status(title);
+  const d = document.createElement('div');
+  d.style.cssText = 'font-size:12px;margin-top:12px;word-break:break-all;text-align:left';
+  d.textContent = '詳細: ' + detail + '（画面 ' + APP_VERSION + '）';
+  $('statusMsg').appendChild(d);
+}
+window.addEventListener('error', (e) => { if (!$('statusMsg').classList.contains('hidden')) showFatal('エラーが発生しました。', e.message); });
+window.addEventListener('unhandledrejection', (e) => {
+  if (!$('statusMsg').classList.contains('hidden')) showFatal('エラーが発生しました。', String(e.reason && (e.reason.message || e.reason)));
+});
 
 async function load(key, { silent } = {}) {
   if (!silent) status('読み込み中…');
@@ -205,7 +265,8 @@ async function load(key, { silent } = {}) {
     storageSet(KEY_STORAGE, key);
     state.recipes = data.recipes;
     state.fetchedAt = new Date(data.fetchedAt);
-    route();
+    try { route(); }
+    catch (e) { showFatal('レシピの表示中にエラーが発生しました。', e && (e.name + ' ' + e.message)); }
   } catch (err) {
     if (err.kind === 'unauthorized') {
       storageDel(KEY_STORAGE);
@@ -214,7 +275,7 @@ async function load(key, { silent } = {}) {
       alert(err.message); // 更新に失敗しても、表示中のデータはそのまま使える
       route();
     } else {
-      status(err.message);
+      if (err.detail) showFatal(err.message, err.detail); else status(err.message);
       if (err.kind === 'network' || err.kind === 'server') {
         const retry = document.createElement('button');
         retry.className = 'primary'; retry.textContent = 'もう一度読み込む';
@@ -279,7 +340,7 @@ function renderList() {
     list.appendChild(li);
   });
   $('emptyMsg').classList.toggle('hidden', count > 0);
-  $('fetchedAt').textContent = state.fetchedAt ? '最終更新: ' + state.fetchedAt.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  $('fetchedAt').textContent = (state.fetchedAt ? '最終更新: ' + state.fetchedAt.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + '・' : '') + '画面 ' + APP_VERSION;
   show('listView');
 }
 
@@ -334,14 +395,14 @@ function renderDetail(recipe) {
     const row2 = document.createElement('div'); row2.className = 'scale-row';
     const tIn = document.createElement('input'); tIn.type = 'number'; tIn.inputMode = 'decimal'; tIn.min = '0'; tIn.step = 'any';
     tIn.value = String(Number((recipe.baseAmount * factor).toFixed(3)));
-    tIn.setAttribute('aria-label', '仕上がり量');
+    tIn.setAttribute('aria-label', '作る量');
     tIn.onchange = () => { const x = parseFloat(tIn.value); if (x > 0) setScale(recipe, x / recipe.baseAmount); };
-    row2.append(document.createTextNode('仕上がり量'), tIn, document.createTextNode(recipe.baseUnit + ' で作る'));
+    row2.append(document.createTextNode('作る量'), tIn, document.createTextNode(recipe.baseUnit + ' で作る'));
     sc.appendChild(row2);
   }
   if (Math.abs(factor - 1) > 1e-9) {
     const cur = document.createElement('div'); cur.className = 'current';
-    cur.textContent = '現在: 元の分量の ×' + Number(factor.toFixed(4)) + (recipe.baseAmount ? '（仕上がり ' + fmt(recipe.baseAmount * factor) + recipe.baseUnit + '）' : '');
+    cur.textContent = '現在: 元の分量の ×' + Number(factor.toFixed(4)) + (recipe.baseAmount ? '（' + fmt(recipe.baseAmount * factor) + recipe.baseUnit + ' 分）' : '');
     sc.appendChild(cur);
   }
   v.appendChild(sc);
@@ -363,9 +424,16 @@ function renderDetail(recipe) {
       if (i.memo) { const m = document.createElement('span'); m.className = 'memo'; m.textContent = i.memo; tdN.appendChild(m); }
       const tdQ = document.createElement('td'); tdQ.className = 'qty';
       if (i.amount !== null) {
+        const prefix = PREFIX_UNITS.includes(i.unit); // 大さじ・小さじは「大さじ4」の順で出す
+        const u = document.createElement('span'); u.className = 'unit'; u.textContent = i.unit;
+        if (i.unit && prefix) { u.style.margin = '0 2px 0 0'; tdQ.appendChild(u); }
         tdQ.append(document.createTextNode(fmt(i.amount * factor)));
-        if (i.unit) { const u = document.createElement('span'); u.className = 'unit'; u.textContent = i.unit; tdQ.appendChild(u); }
-        if (Math.abs(factor - 1) > 1e-9) { const o = document.createElement('span'); o.className = 'orig'; o.textContent = '元: ' + fmt(i.amount) + i.unit; tdQ.appendChild(o); }
+        if (i.unit && !prefix) tdQ.appendChild(u);
+        if (Math.abs(factor - 1) > 1e-9) {
+          const o = document.createElement('span'); o.className = 'orig';
+          o.textContent = '元: ' + (prefix ? i.unit + fmt(i.amount) : fmt(i.amount) + i.unit);
+          tdQ.appendChild(o);
+        }
       } else {
         tdQ.textContent = i.amountText || '—';
       }
@@ -376,6 +444,16 @@ function renderDetail(recipe) {
     v.appendChild(wrap);
   });
   if (!recipe.ingredients.length) { const e = document.createElement('p'); e.className = 'status'; e.textContent = '材料が登録されていません。'; v.appendChild(e); }
+
+  // 作り方（シートの「作り方」列。1行1工程）
+  if (recipe.steps && recipe.steps.length) {
+    const wrap = document.createElement('div'); wrap.className = 'group';
+    const h3 = document.createElement('h3'); h3.textContent = '作り方';
+    const ol = document.createElement('ol'); ol.className = 'steps';
+    recipe.steps.forEach((s) => { const li = document.createElement('li'); li.textContent = s.replace(/^\d+[.．、)）]\s*/, ''); ol.appendChild(li); });
+    wrap.append(h3, ol);
+    v.appendChild(wrap);
+  }
 
   // 画面を消さない（調理中用。対応していない端末では表示しない）
   if ('wakeLock' in navigator) {
@@ -425,6 +503,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && $('detailView').querySelector('.footer-tools input:checked') && !wakeLock) requestWakeLock();
 });
 
+$('loginVersion').textContent = '画面 ' + APP_VERSION;
 const savedKey = storageGet(KEY_STORAGE);
 if (savedKey) load(savedKey); else showLogin();
 </script>
