@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#8a2b1d">
+<title>よかろーもん レシピ</title>
+<style>
+  :root {
+    --bg: #faf6f1;
+    --surface: #ffffff;
+    --text: #2b2420;
+    --muted: #7a6e66;
+    --line: #e7ddd3;
+    --accent: #8a2b1d;
+    --header: #8a2b1d;
+    --accent-soft: #f6e6e2;
+    --warn-bg: #fff3d6;
+    --warn-line: #e0a526;
+    --warn-text: #6b4a00;
+    --pending-bg: #eef2f7;
+    --pending-line: #9aabc2;
+    --pending-text: #3b4a60;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1816;
+      --surface: #25211e;
+      --text: #f2ebe5;
+      --muted: #a89c93;
+      --line: #3a3430;
+      --accent: #e0826f;
+      --header: #6e2317;
+      --accent-soft: #3a2621;
+      --warn-bg: #3a2f14;
+      --warn-line: #b8871c;
+      --warn-text: #f5dca0;
+      --pending-bg: #232a34;
+      --pending-line: #56657a;
+      --pending-text: #c6d2e2;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-text-size-adjust: 100%;
+  }
+  button, input { font: inherit; color: inherit; }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--header); color: #fff;
+    padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top));
+    display: flex; align-items: center; gap: 12px;
+  }
+  header h1 { font-size: 18px; margin: 0; flex: 1; font-weight: 700; letter-spacing: .02em; }
+  header button {
+    background: rgba(255,255,255,.18); border: 0; color: #fff;
+    border-radius: 8px; padding: 6px 12px; font-size: 15px; cursor: pointer;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 16px 16px 48px; }
+  .hidden { display: none !important; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .field { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 17px; }
+  .field:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  .primary {
+    width: 100%; margin-top: 12px; padding: 13px; border: 0; border-radius: 10px;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 17px; cursor: pointer;
+  }
+  .error { color: #c0392b; margin: 10px 0 0; font-size: 15px; }
+  @media (prefers-color-scheme: dark) { .error { color: #ff8a7a; } }
+  .status { color: var(--muted); text-align: center; padding: 32px 0; }
+
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 4px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; border: 1px solid var(--line); background: var(--surface);
+    border-radius: 999px; padding: 6px 14px; font-size: 15px; cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+  .list button {
+    width: 100%; text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  }
+  .list .name { font-weight: 700; font-size: 18px; flex: 1; }
+  .list .meta { color: var(--muted); font-size: 14px; }
+  .badge { font-size: 12px; font-weight: 700; border-radius: 6px; padding: 2px 7px; background: var(--pending-bg); color: var(--pending-text); border: 1px solid var(--pending-line); white-space: nowrap; }
+  .match { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  .detail h2 { font-size: 24px; margin: 4px 0 2px; }
+  .detail .sub { color: var(--muted); margin: 0 0 14px; font-size: 15px; }
+  .note { background: var(--warn-bg); border-left: 5px solid var(--warn-line); color: var(--warn-text); border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; font-weight: 700; white-space: pre-wrap; }
+  .pending { background: var(--pending-bg); border-left: 5px solid var(--pending-line); color: var(--pending-text); border-radius: 8px; padding: 10px 14px; margin: 0 0 14px; font-size: 14px; white-space: pre-wrap; }
+  .pending strong { display: block; margin-bottom: 2px; }
+
+  .scale { margin-bottom: 16px; }
+  .scale .label { font-size: 14px; color: var(--muted); margin: 0 0 6px; }
+  .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .presets button { padding: 10px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-weight: 700; cursor: pointer; }
+  .presets button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .scale-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .scale-row input { width: 110px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 17px; text-align: right; }
+  .current { margin-top: 10px; font-weight: 700; color: var(--accent); }
+
+  .group h3 { font-size: 15px; color: var(--muted); margin: 18px 0 6px; letter-spacing: .05em; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  td { padding: 11px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+  tr:first-child td { border-top: 0; }
+  td.qty { text-align: right; white-space: nowrap; font-weight: 700; font-size: 19px; font-variant-numeric: tabular-nums; }
+  td.qty .unit { font-size: 14px; font-weight: 400; margin-left: 2px; }
+  td.qty .orig { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .memo { display: block; font-size: 13px; color: var(--muted); }
+
+  .footer-tools { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 14px; }
+  .footer-tools label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .fetched { color: var(--muted); font-size: 13px; text-align: center; margin-top: 18px; }
+  .link-btn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 14px; padding: 0; }
+</style>
+</head>
+<body>
+<header>
+  <button id="backBtn" class="hidden" aria-label="一覧に戻る">‹ 一覧</button>
+  <h1 id="title">よかろーもん レシピ</h1>
+  <button id="reloadBtn" class="hidden">更新</button>
+</header>
+
+<main>
+  <!-- 合言葉 -->
+  <section id="loginView" class="hidden">
+    <div class="card">
+      <p style="margin-top:0">お店の合言葉を入力してください。<br><span style="color:var(--muted);font-size:14px">この端末に記憶されるので、入力は最初の1回だけです。</span></p>
+      <form id="loginForm">
+        <input id="keyInput" class="field" type="password" autocomplete="current-password" placeholder="合言葉" required>
+        <button class="primary" type="submit">開く</button>
+      </form>
+      <p id="loginError" class="error hidden"></p>
+    </div>
+  </section>
+
+  <p id="statusMsg" class="status hidden"></p>
+
+  <!-- 一覧 -->
+  <section id="listView" class="hidden">
+    <input id="searchInput" class="field" type="search" placeholder="料理名・材料名で検索" autocomplete="off">
+    <div id="chips" class="chips" role="group" aria-label="カテゴリ"></div>
+    <ul id="recipeList" class="list"></ul>
+    <p id="emptyMsg" class="status hidden">該当するレシピがありません。</p>
+    <p class="fetched"><span id="fetchedAt"></span><br><button id="logoutBtn" class="link-btn">合言葉を入れ直す</button></p>
+  </section>
+
+  <!-- 詳細 -->
+  <section id="detailView" class="detail hidden"></section>
+</main>
+
+<script>
+'use strict';
+// レシピデータはこのファイルに書かない。GASのAPIから合言葉付きで取得する（このファイルは公開リポジトリに置くため）。
+const API_URL = 'https://script.google.com/macros/s/AKfycbxXX8PZZkaBL3DBD5m6lak6gpOuTudh42oUiUrkcEsEbS_oBXm8O1ZbAiotQIa0ZKTu/exec';
+const KEY_STORAGE = 'yokaromon_recipe_key';
+const PRESETS = [0.5, 1, 2, 3, 5];
+
+const state = { recipes: [], fetchedAt: null, category: 'すべて', query: '', scale: {} };
+const $ = (id) => document.getElementById(id);
+
+function storageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function storageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 保存できない端末でも毎回入力すれば使える */ } }
+function storageDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+function show(viewId) {
+  ['loginView', 'listView', 'detailView', 'statusMsg'].forEach((id) => $(id).classList.toggle('hidden', id !== viewId));
+  const inDetail = viewId === 'detailView';
+  $('backBtn').classList.toggle('hidden', !inDetail);
+  $('reloadBtn').classList.toggle('hidden', !(viewId === 'listView' || inDetail));
+  if (!inDetail) { $('title').textContent = 'よかろーもん レシピ'; releaseWakeLock(); }
+}
+function status(msg) { $('statusMsg').textContent = msg; show('statusMsg'); }
+
+async function fetchRecipes(key) {
+  const url = API_URL + '?api=recipes&key=' + encodeURIComponent(key) + '&t=' + Date.now();
+  let res;
+  try {
+    res = await fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store' });
+  } catch (e) {
+    throw { kind: 'network', message: '通信できませんでした。電波の状態を確認して、もう一度お試しください。' };
+  }
+  let data;
+  try { data = await res.json(); }
+  catch (e) { throw { kind: 'server', message: 'サーバーの応答を読み取れませんでした（' + res.status + '）。時間をおいて再度お試しください。' }; }
+  if (!data.ok) throw { kind: data.error, message: data.message || 'エラーが発生しました。' };
+  return data;
+}
+
+async function load(key, { silent } = {}) {
+  if (!silent) status('読み込み中…');
+  try {
+    const data = await fetchRecipes(key);
+    storageSet(KEY_STORAGE, key);
+    state.recipes = data.recipes;
+    state.fetchedAt = new Date(data.fetchedAt);
+    route();
+  } catch (err) {
+    if (err.kind === 'unauthorized') {
+      storageDel(KEY_STORAGE);
+      showLogin(err.message);
+    } else if (state.recipes.length) {
+      alert(err.message); // 更新に失敗しても、表示中のデータはそのまま使える
+      route();
+    } else {
+      status(err.message);
+      if (err.kind === 'network' || err.kind === 'server') {
+        const retry = document.createElement('button');
+        retry.className = 'primary'; retry.textContent = 'もう一度読み込む';
+        retry.onclick = () => load(key);
+        $('statusMsg').appendChild(document.createElement('br'));
+        $('statusMsg').appendChild(retry);
+      }
+    }
+  }
+}
+
+function showLogin(errorMsg) {
+  show('loginView');
+  $('loginError').textContent = errorMsg || '';
+  $('loginError').classList.toggle('hidden', !errorMsg);
+  $('keyInput').value = '';
+}
+
+// ---- 一覧 ----
+function toHira(s) { return s.replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)); }
+function norm(s) { return toHira(String(s).normalize('NFKC').toLowerCase()).replace(/\s+/g, ''); }
+
+function renderList() {
+  const cats = ['すべて', ...new Set(state.recipes.map((r) => r.category))];
+  if (!cats.includes(state.category)) state.category = 'すべて';
+  $('chips').innerHTML = '';
+  cats.forEach((c) => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.textContent = c; b.setAttribute('aria-pressed', String(c === state.category));
+    b.onclick = () => { state.category = c; renderList(); };
+    $('chips').appendChild(b);
+  });
+
+  const q = norm(state.query);
+  const list = $('recipeList');
+  list.innerHTML = '';
+  let count = 0;
+  state.recipes.forEach((r) => {
+    if (state.category !== 'すべて' && r.category !== state.category) return;
+    let hitIngredients = [];
+    if (q) {
+      const nameHit = norm(r.name).includes(q) || norm(r.category).includes(q);
+      hitIngredients = r.ingredients.filter((i) => norm(i.name).includes(q) || norm(i.memo).includes(q)).map((i) => i.name);
+      if (!nameHit && !hitIngredients.length) return;
+    }
+    count++;
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.onclick = () => { history.pushState({ fromList: true }, '', '#/r/' + encodeURIComponent(r.id)); route(); };
+    const left = document.createElement('div'); left.style.flex = '1';
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = r.name;
+    const meta = document.createElement('div'); meta.className = 'meta';
+    meta.textContent = r.category + (r.baseLabel ? '・' + r.baseLabel : '') + '・材料' + r.ingredients.length + '品';
+    left.append(name, meta);
+    if (hitIngredients.length) {
+      const m = document.createElement('div'); m.className = 'match'; m.textContent = '材料に含む: ' + hitIngredients.join('、');
+      left.appendChild(m);
+    }
+    b.appendChild(left);
+    if (r.pending) { const bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = '要確認あり'; b.appendChild(bd); }
+    li.appendChild(b);
+    list.appendChild(li);
+  });
+  $('emptyMsg').classList.toggle('hidden', count > 0);
+  $('fetchedAt').textContent = state.fetchedAt ? '最終更新: ' + state.fetchedAt.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  show('listView');
+}
+
+// ---- 詳細 ----
+function fmt(n) {
+  if (!isFinite(n)) return '-';
+  const a = Math.abs(n);
+  const digits = a >= 100 ? 0 : a >= 10 ? 1 : 2;
+  return Number(n.toFixed(digits)).toLocaleString('ja-JP', { maximumFractionDigits: digits });
+}
+
+function renderDetail(recipe) {
+  const factor = state.scale[recipe.id] || 1;
+  const v = $('detailView');
+  v.innerHTML = '';
+  $('title').textContent = recipe.name;
+
+  const h = document.createElement('h2'); h.textContent = recipe.name;
+  const sub = document.createElement('p'); sub.className = 'sub';
+  sub.textContent = recipe.category + (recipe.baseLabel ? '・元の分量: ' + recipe.baseLabel : '');
+  v.append(h, sub);
+
+  if (recipe.note) { const n = document.createElement('div'); n.className = 'note'; n.textContent = '⚠ ' + recipe.note; v.appendChild(n); }
+  if (recipe.pending) {
+    const p = document.createElement('div'); p.className = 'pending';
+    const s = document.createElement('strong'); s.textContent = '要確認（内容が未確定の点）';
+    p.append(s, document.createTextNode(recipe.pending));
+    v.appendChild(p);
+  }
+
+  // 倍量
+  const sc = document.createElement('div'); sc.className = 'card scale';
+  const lb = document.createElement('p'); lb.className = 'label'; lb.textContent = '作る量（元の分量に対する倍率）';
+  const presets = document.createElement('div'); presets.className = 'presets';
+  PRESETS.forEach((p) => {
+    const b = document.createElement('button');
+    b.textContent = '×' + p; b.setAttribute('aria-pressed', String(Math.abs(factor - p) < 1e-9));
+    b.onclick = () => setScale(recipe, p);
+    presets.appendChild(b);
+  });
+  sc.append(lb, presets);
+
+  const row = document.createElement('div'); row.className = 'scale-row';
+  const fIn = document.createElement('input'); fIn.type = 'number'; fIn.inputMode = 'decimal'; fIn.min = '0'; fIn.step = 'any';
+  fIn.value = String(Number(factor.toFixed(4)));
+  fIn.setAttribute('aria-label', '倍率');
+  fIn.onchange = () => { const x = parseFloat(fIn.value); if (x > 0) setScale(recipe, x); };
+  row.append(document.createTextNode('倍率 ×'), fIn);
+  sc.appendChild(row);
+
+  if (recipe.baseAmount) {
+    const row2 = document.createElement('div'); row2.className = 'scale-row';
+    const tIn = document.createElement('input'); tIn.type = 'number'; tIn.inputMode = 'decimal'; tIn.min = '0'; tIn.step = 'any';
+    tIn.value = String(Number((recipe.baseAmount * factor).toFixed(3)));
+    tIn.setAttribute('aria-label', '仕上がり量');
+    tIn.onchange = () => { const x = parseFloat(tIn.value); if (x > 0) setScale(recipe, x / recipe.baseAmount); };
+    row2.append(document.createTextNode('仕上がり量'), tIn, document.createTextNode(recipe.baseUnit + ' で作る'));
+    sc.appendChild(row2);
+  }
+  if (Math.abs(factor - 1) > 1e-9) {
+    const cur = document.createElement('div'); cur.className = 'current';
+    cur.textContent = '現在: 元の分量の ×' + Number(factor.toFixed(4)) + (recipe.baseAmount ? '（仕上がり ' + fmt(recipe.baseAmount * factor) + recipe.baseUnit + '）' : '');
+    sc.appendChild(cur);
+  }
+  v.appendChild(sc);
+
+  // 材料（区分ごと）
+  const groups = [];
+  recipe.ingredients.forEach((i) => {
+    let g = groups.find((x) => x.name === i.group);
+    if (!g) { g = { name: i.group, items: [] }; groups.push(g); }
+    g.items.push(i);
+  });
+  groups.forEach((g) => {
+    const wrap = document.createElement('div'); wrap.className = 'group';
+    const gh = document.createElement('h3'); gh.textContent = g.name;
+    const table = document.createElement('table');
+    g.items.forEach((i) => {
+      const tr = document.createElement('tr');
+      const tdN = document.createElement('td'); tdN.textContent = i.name;
+      if (i.memo) { const m = document.createElement('span'); m.className = 'memo'; m.textContent = i.memo; tdN.appendChild(m); }
+      const tdQ = document.createElement('td'); tdQ.className = 'qty';
+      if (i.amount !== null) {
+        tdQ.append(document.createTextNode(fmt(i.amount * factor)));
+        if (i.unit) { const u = document.createElement('span'); u.className = 'unit'; u.textContent = i.unit; tdQ.appendChild(u); }
+        if (Math.abs(factor - 1) > 1e-9) { const o = document.createElement('span'); o.className = 'orig'; o.textContent = '元: ' + fmt(i.amount) + i.unit; tdQ.appendChild(o); }
+      } else {
+        tdQ.textContent = i.amountText || '—';
+      }
+      tr.append(tdN, tdQ);
+      table.appendChild(tr);
+    });
+    wrap.append(gh, table);
+    v.appendChild(wrap);
+  });
+  if (!recipe.ingredients.length) { const e = document.createElement('p'); e.className = 'status'; e.textContent = '材料が登録されていません。'; v.appendChild(e); }
+
+  // 画面を消さない（調理中用。対応していない端末では表示しない）
+  if ('wakeLock' in navigator) {
+    const tools = document.createElement('div'); tools.className = 'footer-tools';
+    const label = document.createElement('label');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!wakeLock;
+    cb.onchange = async () => { if (cb.checked) { await requestWakeLock(); cb.checked = !!wakeLock; } else releaseWakeLock(); };
+    label.append(cb, document.createTextNode('作業中は画面を消さない'));
+    tools.appendChild(label);
+    v.appendChild(tools);
+  }
+  show('detailView');
+}
+
+function setScale(recipe, factor) {
+  state.scale[recipe.id] = factor;
+  renderDetail(recipe);
+}
+
+let wakeLock = null;
+async function requestWakeLock() {
+  try { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+  catch (e) { wakeLock = null; alert('この端末では画面の常時点灯を設定できませんでした。'); }
+}
+function releaseWakeLock() { if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } }
+
+// ---- 画面遷移（#/r/ID で詳細。Androidの戻るボタンで一覧に戻れるようにハッシュで管理） ----
+function route() {
+  if (!state.recipes.length && !state.fetchedAt) return;
+  const m = location.hash.match(/^#\/r\/(.+)$/);
+  if (m) {
+    const recipe = state.recipes.find((r) => r.id === decodeURIComponent(m[1]));
+    if (recipe) { renderDetail(recipe); window.scrollTo(0, 0); return; }
+    history.replaceState(null, '', location.pathname);
+  }
+  renderList();
+}
+
+window.addEventListener('hashchange', route);
+// 一覧から開いた詳細なら history.back()（Androidの戻るボタンと同じ動き）。直接開いた詳細なら一覧へ置き換える
+$('backBtn').onclick = () => { if (history.state && history.state.fromList) history.back(); else { history.replaceState(null, '', location.pathname); route(); } };
+$('reloadBtn').onclick = () => { const k = storageGet(KEY_STORAGE); if (k) load(k, { silent: true }); else showLogin(); };
+$('logoutBtn').onclick = () => { storageDel(KEY_STORAGE); state.recipes = []; state.fetchedAt = null; showLogin(); };
+$('searchInput').addEventListener('input', (e) => { state.query = e.target.value; renderList(); });
+$('loginForm').addEventListener('submit', (e) => { e.preventDefault(); const k = $('keyInput').value.trim(); if (k) load(k); });
+document.addEventListener('visibilitychange', () => {
+  // 画面ロック後に戻ったとき、「画面を消さない」をかけ直す
+  if (document.visibilityState === 'visible' && $('detailView').querySelector('.footer-tools input:checked') && !wakeLock) requestWakeLock();
+});
+
+const savedKey = storageGet(KEY_STORAGE);
+if (savedKey) load(savedKey); else showLogin();
+</script>
+</body>
+</html>
