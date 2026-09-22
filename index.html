@@ -123,7 +123,6 @@
   .footer-tools { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 14px; }
   .footer-tools label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .fetched { color: var(--muted); font-size: 13px; text-align: center; margin-top: 18px; }
-  .link-btn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 14px; padding: 0; }
 </style>
 </head>
 <body>
@@ -154,7 +153,7 @@
     <div id="chips" class="chips" role="group" aria-label="カテゴリ"></div>
     <ul id="recipeList" class="list"></ul>
     <p id="emptyMsg" class="status hidden">該当するレシピがありません。</p>
-    <p class="fetched"><span id="fetchedAt"></span><br><button id="logoutBtn" class="link-btn">合言葉を入れ直す</button></p>
+    <p class="fetched"><span id="fetchedAt"></span></p>
   </section>
 
   <!-- 詳細 -->
@@ -419,7 +418,6 @@ window.addEventListener('hashchange', route);
 // 一覧から開いた詳細なら history.back()（Androidの戻るボタンと同じ動き）。直接開いた詳細なら一覧へ置き換える
 $('backBtn').onclick = () => { if (history.state && history.state.fromList) history.back(); else { history.replaceState(null, '', location.pathname); route(); } };
 $('reloadBtn').onclick = () => { const k = storageGet(KEY_STORAGE); if (k) load(k, { silent: true }); else showLogin(); };
-$('logoutBtn').onclick = () => { storageDel(KEY_STORAGE); state.recipes = []; state.fetchedAt = null; showLogin(); };
 $('searchInput').addEventListener('input', (e) => { state.query = e.target.value; renderList(); });
 $('loginForm').addEventListener('submit', (e) => { e.preventDefault(); const k = $('keyInput').value.trim(); if (k) load(k); });
 document.addEventListener('visibilitychange', () => {
